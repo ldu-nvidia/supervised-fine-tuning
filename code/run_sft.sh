@@ -14,9 +14,9 @@
 # limitations under the License.
 
 # if compute uses slurm, request compute
-srun -G 8 --exclusive -p dgxa100_80g_2tb --pty -t 24:00:00 bash
+#srun -G 8 --exclusive -p dgxa100_80g_2tb --pty -t 24:00:00 bash
 
-docker run -it -p 8080:8080 -p 8088:8088 --rm --gpus '"device=0,1,2,3,4,5,6,7"' --ipc=host --network host -v $(pwd):/workspace nvcr.io/nvidia/nemo:24.12
+docker run -it -p 8080:8080 -p 8088:8088 --rm --gpus '"device=0,1"' --ipc=host --network host -v $(pwd):/workspace nvcr.io/nvidia/nemo:24.12
 
 python -m pip install --upgrade pip
 source token.env
@@ -25,7 +25,6 @@ pip3 install -U "huggingface_hub[cli]"
 huggingface-cli login --token $HF_ACCESS_TOKEN
 
 ## download Llama2-7b model from HF and convert the format
-
 mkdir Llama-2-7b/
 echo "downloading llama2 7b model checkpoint into folder"
 huggingface-cli download meta-llama/Llama-2-7b-hf --local-dir Llama-2-7b
@@ -48,27 +47,24 @@ MODEL=Llama-2-7b.nemo
 CONCAT_SAMPLING_PROBS="[1.0]"
 
 # set tensor and pipeline parallel size
-TP_SIZE=8
+TP_SIZE=2
 PP_SIZE=1
 
 # key training parameters
-MICRO_BATCH_SIZE=8
-GLOBAL_BATCH_SIZE=32
+MICRO_BATCH_SIZE=4
+GLOBAL_BATCH_SIZE=8
 LR=5e-6
 MAX_STEP=100
-MAX_EPOCH=5
-
 
 # now run SFT command by appropriately setting the values for the parameters needed to run the job
 echo "running supervised fine tuning step..."
-torchrun --nproc_per_node=8 \
+torchrun --nproc_per_node=2 \
 /opt/NeMo/examples/nlp/language_modeling/tuning/megatron_gpt_finetuning.py \
    trainer.precision=bf16 \
    trainer.devices=${TP_SIZE} \
    trainer.num_nodes=1 \
    trainer.val_check_interval=0.1 \
    trainer.max_steps=${MAX_STEP} \
-   trainer.max_epochs=${MAX_EPOCH} \
    model.restore_from_path=${MODEL} \
    model.micro_batch_size=${MICRO_BATCH_SIZE} \
    model.global_batch_size=${GLOBAL_BATCH_SIZE} \
@@ -99,7 +95,7 @@ torchrun --nproc_per_node=8 \
    model.data.test_ds.num_workers=${TP_SIZE} \
    model.data.validation_ds.metric.name=loss \
    model.data.test_ds.metric.name=loss \
-   exp_manager.create_wandb_logger=True\
+   exp_manager.create_wandb_logger=False \
    exp_manager.explicit_log_dir=${TRAINING_LOG_DIR} \
    exp_manager.resume_if_exists=True \
    exp_manager.resume_ignore_no_checkpoint=True \
@@ -110,20 +106,35 @@ torchrun --nproc_per_node=8 \
    exp_manager.checkpoint_callback_params.mode=min \
    ++cluster_type=BCP
 
+# following training and checkpoint saved, we run evaluation on original llama model
+python3 /opt/NeMo/examples/nlp/language_modeling/tuning/megatron_gpt_generate.py \
+    model.restore_from_path=${MODEL} \
+    trainer.devices=2 \
+    model.micro_batch_size=${MICRO_BATCH_SIZE} \
+    model.global_batch_size=${GLOBAL_BATCH_SIZE} \
+    model.data.test_ds.file_names=["code/data/merged/MG-Verilog_high_level_global_summary_in_out_test.jsonl"] \
+    model.data.test_ds.names=['llama_model'] \
+    model.data.test_ds.global_batch_size=${GLOBAL_BATCH_SIZE} \
+    model.data.test_ds.micro_batch_size=${MICRO_BATCH_SIZE} \
+    model.data.test_ds.tokens_to_generate=2048 \
+    model.tensor_model_parallel_size=1 \
+    model.pipeline_model_parallel_size=1 \
+    inference.greedy=True \
+    model.data.test_ds.output_file_path_prefix=/results/sft_results \
+    model.data.test_ds.write_predictions_to_file=True
 
-# following training and checkpoint saved, we run evaluation 
-PATH_TO_TRAINED_MODEL=/results/nemo_experiments/megatron_gpt_peft_none_tuning.nemo
-TEST_DS="[YOUR PATH TO test.jsonl]"
-python /opt/NeMo/examples/nlp/language_modeling/tuning/megatron_gpt_generate.py \
+# run evaluation on supervise fine tuned model
+PATH_TO_TRAINED_MODEL=/results/checkpoints/megatron_gpt_peft_none_tuning.nemo
+python3 /opt/NeMo/examples/nlp/language_modeling/tuning/megatron_gpt_generate.py \
     model.restore_from_path=${PATH_TO_TRAINED_MODEL} \
-    trainer.devices=8 \
-    model.micro_batch_size=2 \
-    model.global_batch_size=16 \
-    model.data.test_ds.file_names=${TEST_DS} \
-    model.data.test_ds.names=['dolly-15k_test'] \
-    model.data.test_ds.global_batch_size=16 \
-    model.data.test_ds.micro_batch_size=2 \
-    model.data.test_ds.tokens_to_generate=20 \
+    trainer.devices=2 \
+    model.micro_batch_size=${MICRO_BATCH_SIZE} \
+    model.global_batch_size=${GLOBAL_BATCH_SIZE} \
+    model.data.test_ds.file_names=["code/data/merged/MG-Verilog_high_level_global_summary_in_out_test.jsonl"] \
+    model.data.test_ds.names=['sft_llama_model'] \
+    model.data.test_ds.global_batch_size=${GLOBAL_BATCH_SIZE} \
+    model.data.test_ds.micro_batch_size=${MICRO_BATCH_SIZE} \
+    model.data.test_ds.tokens_to_generate=2048 \
     model.tensor_model_parallel_size=1 \
     model.pipeline_model_parallel_size=1 \
     inference.greedy=True \
