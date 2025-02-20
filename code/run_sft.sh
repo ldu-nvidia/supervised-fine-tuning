@@ -42,14 +42,8 @@ else
     exit
 fi
 
-#TRAIN_DS=[${DATA_DIR}/data/merged/MG-Verilog_high_level_global_summary_in_out_train.jsonl]
-#VALID_DS=[${DATA_DIR}/data/merged/MG-Verilog_high_level_global_summary_in_out_validation.jsonl]
-#TEST_DS=[${DATA_DIR}/data/merged/MG-Verilog_high_level_global_summary_in_out_test.jsonl]
-
 ##### training script for actual sft
-DATA_DIR="/code"
 TRAINING_LOG_DIR="/results"
-
 MODEL=Llama-2-7b.nemo
 CONCAT_SAMPLING_PROBS="[1.0]"
 
@@ -59,9 +53,10 @@ PP_SIZE=1
 
 # key training parameters
 MICRO_BATCH_SIZE=8
-GLOBAL_BATCH_SIZE=16
-LR=4e-5
-MAX_STEP=50
+GLOBAL_BATCH_SIZE=32
+LR=5e-6
+MAX_STEP=100
+MAX_EPOCH=5
 
 
 # now run SFT command by appropriately setting the values for the parameters needed to run the job
@@ -71,8 +66,9 @@ torchrun --nproc_per_node=8 \
    trainer.precision=bf16 \
    trainer.devices=${TP_SIZE} \
    trainer.num_nodes=1 \
-   trainer.val_check_interval=0.2 \
+   trainer.val_check_interval=0.1 \
    trainer.max_steps=${MAX_STEP} \
+   trainer.max_epochs=${MAX_EPOCH} \
    model.restore_from_path=${MODEL} \
    model.micro_batch_size=${MICRO_BATCH_SIZE} \
    model.global_batch_size=${GLOBAL_BATCH_SIZE} \
@@ -103,7 +99,7 @@ torchrun --nproc_per_node=8 \
    model.data.test_ds.num_workers=${TP_SIZE} \
    model.data.validation_ds.metric.name=loss \
    model.data.test_ds.metric.name=loss \
-   exp_manager.create_wandb_logger=False \
+   exp_manager.create_wandb_logger=True\
    exp_manager.explicit_log_dir=${TRAINING_LOG_DIR} \
    exp_manager.resume_if_exists=True \
    exp_manager.resume_ignore_no_checkpoint=True \
@@ -112,7 +108,6 @@ torchrun --nproc_per_node=8 \
    exp_manager.checkpoint_callback_params.save_best_model=True \
    exp_manager.checkpoint_callback_params.save_nemo_on_train_end=True \
    exp_manager.checkpoint_callback_params.mode=min \
-   exp_manager.create_wandb_logger=True \
    ++cluster_type=BCP
 
 
