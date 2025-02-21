@@ -51,8 +51,8 @@ TP_SIZE=2
 PP_SIZE=1
 
 # key training parameters
-MICRO_BATCH_SIZE=4
-GLOBAL_BATCH_SIZE=8
+MICRO_BATCH_SIZE=2
+GLOBAL_BATCH_SIZE=4
 LR=5e-6
 MAX_STEP=100
 
@@ -107,8 +107,10 @@ torchrun --nproc_per_node=2 \
    ++cluster_type=BCP
 
 # following training and checkpoint saved, we run evaluation on original llama model
+PATH_TO_TRAINED_MODEL=/results/checkpoints/megatron_gpt_peft_none_tuning.nemo
+
 python3 /opt/NeMo/examples/nlp/language_modeling/tuning/megatron_gpt_generate.py \
-    model.restore_from_path=${MODEL} \
+    model.restore_from_path=${PATH_TO_TRAINED_MODEL} \
     trainer.devices=2 \
     model.micro_batch_size=${MICRO_BATCH_SIZE} \
     model.global_batch_size=${GLOBAL_BATCH_SIZE} \
@@ -117,26 +119,8 @@ python3 /opt/NeMo/examples/nlp/language_modeling/tuning/megatron_gpt_generate.py
     model.data.test_ds.global_batch_size=${GLOBAL_BATCH_SIZE} \
     model.data.test_ds.micro_batch_size=${MICRO_BATCH_SIZE} \
     model.data.test_ds.tokens_to_generate=2048 \
-    model.tensor_model_parallel_size=1 \
-    model.pipeline_model_parallel_size=1 \
-    inference.greedy=True \
-    model.data.test_ds.output_file_path_prefix=/results/sft_results \
-    model.data.test_ds.write_predictions_to_file=True
-
-# run evaluation on supervise fine tuned model
-PATH_TO_TRAINED_MODEL=/results/checkpoints/megatron_gpt_peft_none_tuning.nemo
-python3 /opt/NeMo/examples/nlp/language_modeling/tuning/megatron_gpt_generate.py \
-    model.restore_from_path=${PATH_TO_TRAINED_MODEL} \
-    trainer.devices=2 \
-    model.micro_batch_size=${MICRO_BATCH_SIZE} \
-    model.global_batch_size=${GLOBAL_BATCH_SIZE} \
-    model.data.test_ds.file_names=["code/data/merged/MG-Verilog_high_level_global_summary_in_out_test.jsonl"] \
-    model.data.test_ds.names=['sft_llama_model'] \
-    model.data.test_ds.global_batch_size=${GLOBAL_BATCH_SIZE} \
-    model.data.test_ds.micro_batch_size=${MICRO_BATCH_SIZE} \
-    model.data.test_ds.tokens_to_generate=2048 \
-    model.tensor_model_parallel_size=1 \
-    model.pipeline_model_parallel_size=1 \
+    model.tensor_model_parallel_size=${TP_SIZE} \
+    model.pipeline_model_parallel_size=${PP_SIZE} \
     inference.greedy=True \
     model.data.test_ds.output_file_path_prefix=/results/sft_results \
     model.data.test_ds.write_predictions_to_file=True
