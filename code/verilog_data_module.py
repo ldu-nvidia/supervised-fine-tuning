@@ -14,8 +14,6 @@ if TYPE_CHECKING:
     from nemo.collections.common.tokenizers import TokenizerSpec
     from nemo.collections.llm.gpt.data.packed_sequence import PackedSequenceSpecs
 
-
-
 BLOCK_COMMON="You only complete chats with syntax correct Verilog code. End the Verilog module code completion with 'endmodule'. Do not include module, input and output definitions.\n    <</SYS>>\n\n    Implement the Verilog module based on the following block level summaries. Assume that signals are positive clock/clk edge triggered unless otherwise stated.\nHere are block level summaries:\n\nblock_0:"
 DETAILED_COMMON="You only complete chats with syntax correct Verilog code. End the Verilog module code completion with 'endmodule'. Do not include module, input and output definitions.\n    <</SYS>>\n\n    Implement the Verilog module based on the following description. Assume that signals are positive clock/clk edge triggered unless otherwise stated."
 HIGH_LEVEL_COMMON="You only complete chats with syntax correct Verilog code. End the Verilog module code completion with 'endmodule'. Do not include module, input and output definitions.\n    <</SYS>>\n\n    Implement the Verilog module based on the following description. Assume that signals are positive clock/clk edge triggered unless otherwise stated."
@@ -95,26 +93,14 @@ class VerilogDataModule(FineTuningDataModule, IOMixin):
         save_splits['test'] = split_dataset2['test']
 
         for split_name, dataset in save_splits.items():
-            #output_file_block = self.dataset_root / f"block_{split_name}.jsonl"
-            #output_file_detailed = self.dataset_root / f"detailed_{split_name}.jsonl"
             output_file_high_level = self.dataset_root / f"{split_name}.jsonl"
-            with output_file_high_level.open("w", encoding="utf-8") as f3:
-            #output_file_block.open("w", encoding="utf-8") as f1, output_file_detailed.open("w", encoding="utf-8") as f2, 
+            with output_file_high_level.open("w", encoding="utf-8") as :f
                 for example in dataset:
                     code = example["code"].strip()
                     description = example["description"]
-                    #block_summary, detailed_global_summary = description['block_summary'], description['detailed_global_summary']
                     high_level_global_summary = description['high_level_global_summary']
-                    ## assert if the common strings are present in the description
-                    #assert BLOCK_COMMON in block_summary and DETAILED_COMMON in detailed_global_summary and HIGH_LEVEL_COMMON in high_level_global_summary
-                    #block_summary = block_summary.replace(BLOCK_COMMON, "")
-                    #detailed_global_summary = detailed_global_summary.replace(DETAILED_COMMON, "")
                     high_level_global_summary = high_level_global_summary.replace(HIGH_LEVEL_COMMON, "")
-                    #f1.write(json.dumps({"input": block_summary, "output": code}) + "\n")
-                    #f2.write(json.dumps({"input": detailed_global_summary, "output": code}) + "\n")
-                    f3.write(json.dumps({"input": high_level_global_summary, "output": code}) + "\n")
-            #logging.info(f"{split_name} split saved to {output_file_block}")
-            #logging.info(f"{split_name} split saved to {output_file_detailed}")
+                    f.write(json.dumps({"input": high_level_global_summary, "output": code}) + "\n")
             logging.info(f"{split_name} split saved to {output_file_high_level}")
 
         if self.delete_raw:

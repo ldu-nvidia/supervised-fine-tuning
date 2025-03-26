@@ -29,7 +29,7 @@ def trainer() -> run.Config[nl.Trainer]:
     trainer = run.Config(
         nl.Trainer,
         devices=2,
-        max_steps=400,
+        max_steps=200,
         accelerator="gpu",
         strategy=strategy,
         plugins=bf16_mixed(),

@@ -16,7 +16,7 @@
 git lfs install
 git clone https://huggingface.co/meta-llama/Llama-2-7b-hf
 
-docker run -it -p 8080:8080 -p 8088:8088 --rm --gpus '"device=0,2"' --ipc=host --network host -v $(pwd):/workspace nvcr.io/nvidia/nemo:25.02
+docker run -it -p 8080:8080 -p 8088:8088 --rm --gpus all --ipc=host --network host -v $(pwd):/workspace nvcr.io/nvidia/nemo:25.02
 
 cd Llama-2-7b-hf
 
